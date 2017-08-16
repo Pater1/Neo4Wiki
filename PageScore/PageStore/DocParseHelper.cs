@@ -14,16 +14,44 @@ namespace PageScore
 
         public static string GetXMLContentRaw(this string xml)
         {
+            XmlDocument xmdoc = new XmlDocument();
+            xmdoc.LoadXml(xml);
+
+            return GetXMLContentRaw(xmdoc);
+        }
+        //public static string GetXMLContentRaw(this XmlDocument xml)
+        //{
+        //    foreach (XmlNode childrenNode in xml)
+        //    {
+        //        ret += childrenNode.InnerText + " ";
+        //        Console.WriteLine(ret);
+        //    }
+
+        //    Console.WriteLine(ret + "\n\n");
+        //}
+        public static string GetXMLContentRaw(this XmlNode xml)
+        {
             string ret = "";
-            XmlReader rdr = XmlReader.Create(xml);
-            while (rdr.Read())
+            foreach (XmlNode node in xml)
             {
-                ret += rdr.ReadInnerXml();
+                if (node.HasChildNodes)
+                {
+                    foreach (XmlNode child in node.ChildNodes)
+                    {
+                        ret += child.GetXMLContentRaw();
+                    }
+                }
+                else
+                {
+                    ret += node.InnerText + " ";
+                }
             }
             return ret;
         }
 
-        public static string GetTextContentRaw(this string text)
+        
+
+public static string GetTextContentRaw(this string text)
         {
             Regex rgx = new Regex("[^a-zA-Z0-9 -]");
             return rgx.Replace(text, "").ToLower();
@@ -35,7 +63,8 @@ namespace PageScore
             string[] strs = normalized.Split(' ');
             foreach(string st in strs)
             {
-                if (ret.ContainsKey(st))
+                if (string.IsNullOrEmpty(st)) continue;
+                if (!ret.ContainsKey(st))
                 {
                     ret.Add(st, 1);
                 }
