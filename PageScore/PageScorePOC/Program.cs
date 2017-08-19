@@ -33,15 +33,7 @@ namespace PageScorePOC
         {
             client.GraphClient graphClient = new client.GraphClient(new Uri("http://localhost:7474/db/data"), "neo4j", "password");
             graphClient.Connect();
-
-            //PageNode a = new PageNode(1, "Page1", xml1);
-            //PageNode b = new PageNode(2, "Page2", xml2);
-            //PageNode c = new PageNode(3, "Page3", xml3);
-
-            //a.WriteToDatabase(graphClient);
-            //b.WriteToDatabase(graphClient);
-            //c.WriteToDatabase(graphClient);
-
+            
             LinksTo.Build(graphClient, "Page1", "Page2");
         }
     }

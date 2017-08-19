@@ -7,6 +7,7 @@ using driver = Neo4j.Driver.V1;
 using client = Neo4jClient;
 using PageScore;
 using Neo4jClient.Cypher;
+using Neo4jClient;
 
 namespace NeoContainers
 {
@@ -65,6 +66,36 @@ namespace NeoContainers
             }
         }
 
+        public PageNode PullFromDatabaseByTitle(client.GraphClient graphClient, string title)
+        {
+            return graphClient.Cypher
+                .Match("(pagenode:PageNode)")
+                .Where((PageNode pagenode) => pagenode.Title == title)
+                .Return(pagenode => pagenode.Node<PageNode>())
+                .Results.Single().Data;
+        }
+        public void LinkUp(client.GraphClient graphClient)
+        {
+            Node<PageNode> source =
+                graphClient.Cypher
+                .Match("(pagenode:PageNode)")
+                .Where((PageNode pagenode) => pagenode.Title == Title)
+                .Return(pagenode => pagenode.Node<PageNode>())
+                .Results.Single();
+
+            foreach (string st in LinkedToList)
+            {
+                Node<PageNode> linked =
+                    graphClient.Cypher
+                    .Match("(pagenode:PageNode)")
+                    .Where((PageNode pagenode) => pagenode.Title == st)
+                    .Return(pagenode => pagenode.Node<PageNode>())
+                    .Results.Single();
+
+                graphClient.CreateRelationship(source.Reference, new LinksTo(linked.Reference));
+            }
+        }
+
         public PageNode(){}
         public PageNode(long iD, string title, string text, string[] links = null) : this()
         {
@@ -114,67 +145,5 @@ namespace NeoContainers
                 count[i] = l[i].Value;
             }
         }
-
-        //#region INode
-        //public object this[string key] => Properties[key];
-
-        //public IReadOnlyList<string> Labels => Properties.ToList().Select(x => x.Key).ToList();
-        //public string LabelsAsString
-        //{
-        //    get
-        //    {
-        //        string ret = "{";
-        //        IReadOnlyList<string> lbls = Labels;
-        //        bool first = true;
-        //        foreach(string s in lbls)
-        //        {
-        //            ret += (first? "": ", ") + s + ": {" + s + "}";
-        //            first = false;
-        //        }
-        //        ret += "}";
-        //        Console.WriteLine(ret);
-        //        return ret;
-        //    }
-        //}
-
-        //private Dictionary<string, object> properties;
-        //public IReadOnlyDictionary<string, object> Properties
-        //{
-        //    get
-        //    {
-        //        if(properties == null)
-        //        {
-        //            properties = new Dictionary<string, object>();
-        //            properties.Add("ID", ID);
-        //            properties.Add("Title", Title);
-        //            properties.Add("Text", Text);
-        //            properties.Add("WordList", WordList);
-        //            properties.Add("WordCount", WordCount);
-        //        }
-        //        else
-        //        {
-        //            properties["ID"] = ID;
-        //            properties["Title"] = Title;
-        //            properties["Text"] = Text;
-        //            properties["WordList"] = WordCountDict.Select(x => x.Key).ToArray();
-        //            properties["WordCount"] = WordCountDict.Select(x => x.Value).ToArray();
-        //        }
-        //        return properties;
-        //    }
-        //}
-
-        //public long Id => ID;
-
-        //public bool Equals(driver.INode other)
-        //{
-        //    if (other.GetType() != typeof(PageNode)) return false;
-
-        //    PageNode pn = (PageNode)other;
-        //    if (pn.ID != ID) return false;
-        //    if (pn.Title != Title) return false;
-
-        //    return true;
-        //}
-        //#endregion
     }
 }
