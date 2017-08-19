@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 using driver = Neo4j.Driver.V1;
 using client = Neo4jClient;
 using PageScore;
+using Neo4jClient.Cypher;
 
 namespace NeoContainers
 {
-    public struct PageNode: driver.INode
+    public class PageNode//: driver.INode
     {
         public static PageNode BuildFromINode(driver.INode node)
         {
@@ -21,110 +22,159 @@ namespace NeoContainers
                 (int[])node.Properties["WordCount"]
             );
         }
-        public void WriteToDatabase(client.GraphClient graphClient)
+        public static PageNode BuildFromINode(ICypherResultItem node)
         {
-            graphClient.Connect();
-
+            client.Node<PageNode> pg = node.Node<PageNode>();
+            return pg.Data;
+        }
+        public static client.Node<PageNode> WriteToDatabase(client.GraphClient graphClient, PageNode pagenode)
+        {
+            client.Node<PageNode> npn = null;
             using (client.Transactions.ITransaction trans = graphClient.BeginTransaction())
             {
-                graphClient.Cypher.Create($"(n:Page {LabelsAsString})").WithParams(this).ExecuteWithoutResults();
+                npn = graphClient.Cypher
+                    .Create(DocParseHelper.KeyFor<PageNode>("page"))
+                    .WithParams(new { pagenode })
+                    .Return(page => page.Node<PageNode>())
+                    .Results
+                    .Single();
 
                 trans.Commit();
             }
+            return npn;
+        }
+        public client.Node<PageNode> WriteToDatabase(client.GraphClient graphClient)
+        {
+            return WriteToDatabase(graphClient, this);
         }
 
-        public long ID { get; }
-        public string Title { get; }
-        public string Text { get; }
-        public Dictionary<string, int> WordCountDict { get; }
-        private string[] WordList => WordCountDict.Select(x => x.Key).ToArray();
-        private int[] WordCount => WordCountDict.Select(x => x.Value).ToArray();
+        public long ID { get; set; }
+        public string Title { get; set; }
+        public string Text { get; set; }
+        private string[] WordList { get; set; }
+        private int[] WordCount { get; set; }
 
-        public PageNode(long iD, string title, string text) : this()
+        private string[] LinkedToList { get; set; }
+
+        public int this[string key]
+        {
+            get
+            {
+                int i = Array.IndexOf(WordList, key);
+                return WordCount[i];
+            }
+        }
+
+        public PageNode(){}
+        public PageNode(long iD, string title, string text, string[] links = null) : this()
         {
             ID = iD;
             Title = title;
             Text = text;
-            WordCountDict = text.GetWordCountDictFromXMLString();
+
+            string[] list;
+            int[] count;
+            UnzipArrays(out list, out count, text.GetWordCountDictFromXMLString());
+
+            WordCount = count;
+            WordList = list;
+
+            LinkedToList = links;
         }
-        public PageNode(long iD, string title, string text, string[] words, int[] count) : this()
+        public PageNode(long iD, string title, string text, string[] words, int[] count, string[] links = null) : this()
         {
             ID = iD;
             Title = title;
             Text = text;
-            WordCountDict = ZipTogetherArrays(words, count);
+            WordCount = count;
+            WordList = words;
+
+            LinkedToList = links;
         }
 
         private static Dictionary<string, int> ZipTogetherArrays(string[] words, int[] count)
         {
-            Dictionary <string, int> ret = new Dictionary<string, int>();
-            for(int i = 0; i < words.Length; i++)
+            Dictionary<string, int> ret = new Dictionary<string, int>();
+            for (int i = 0; i < words.Length; i++)
             {
                 ret.Add(words[i], count[i]);
             }
             return ret;
         }
-
-        #region INode
-        public object this[string key] => Properties[key];
-
-        public IReadOnlyList<string> Labels => Properties.ToList().Select(x => x.Key).ToList();
-        public string LabelsAsString
+        private static void UnzipArrays(out string[] words, out int[] count, Dictionary<string, int> source)
         {
-            get
+            KeyValuePair<string, int>[] l = source.ToArray();
+
+            words = new string[l.Length];
+            count = new int[l.Length];
+
+            for(int i = 0; i < l.Length; i++)
             {
-                string ret = "{";
-                IReadOnlyList<string> lbls = Labels;
-                bool first = true;
-                foreach(string s in lbls)
-                {
-                    ret += (first? "": ", ") + s + ": {" + s + "}";
-                    first = false;
-                }
-                ret += "}";
-                Console.WriteLine(ret);
-                return ret;
+                words[i] = l[i].Key;
+                count[i] = l[i].Value;
             }
         }
 
-        private Dictionary<string, object> properties;
-        public IReadOnlyDictionary<string, object> Properties
-        {
-            get
-            {
-                if(properties == null)
-                {
-                    properties = new Dictionary<string, object>();
-                    properties.Add("ID", ID);
-                    properties.Add("Title", Title);
-                    properties.Add("Text", Text);
-                    properties.Add("WordList", WordList);
-                    properties.Add("WordCount", WordCount);
-                }
-                else
-                {
-                    properties["ID"] = ID;
-                    properties["Title"] = Title;
-                    properties["Text"] = Text;
-                    properties["WordList"] = WordCountDict.Select(x => x.Key).ToArray();
-                    properties["WordCount"] = WordCountDict.Select(x => x.Value).ToArray();
-                }
-                return properties;
-            }
-        }
+        //#region INode
+        //public object this[string key] => Properties[key];
 
-        public long Id => ID;
-        
-        public bool Equals(driver.INode other)
-        {
-            if (other.GetType() != typeof(PageNode)) return false;
+        //public IReadOnlyList<string> Labels => Properties.ToList().Select(x => x.Key).ToList();
+        //public string LabelsAsString
+        //{
+        //    get
+        //    {
+        //        string ret = "{";
+        //        IReadOnlyList<string> lbls = Labels;
+        //        bool first = true;
+        //        foreach(string s in lbls)
+        //        {
+        //            ret += (first? "": ", ") + s + ": {" + s + "}";
+        //            first = false;
+        //        }
+        //        ret += "}";
+        //        Console.WriteLine(ret);
+        //        return ret;
+        //    }
+        //}
 
-            PageNode pn = (PageNode)other;
-            if (pn.ID != ID) return false;
-            if (pn.Title != Title) return false;
+        //private Dictionary<string, object> properties;
+        //public IReadOnlyDictionary<string, object> Properties
+        //{
+        //    get
+        //    {
+        //        if(properties == null)
+        //        {
+        //            properties = new Dictionary<string, object>();
+        //            properties.Add("ID", ID);
+        //            properties.Add("Title", Title);
+        //            properties.Add("Text", Text);
+        //            properties.Add("WordList", WordList);
+        //            properties.Add("WordCount", WordCount);
+        //        }
+        //        else
+        //        {
+        //            properties["ID"] = ID;
+        //            properties["Title"] = Title;
+        //            properties["Text"] = Text;
+        //            properties["WordList"] = WordCountDict.Select(x => x.Key).ToArray();
+        //            properties["WordCount"] = WordCountDict.Select(x => x.Value).ToArray();
+        //        }
+        //        return properties;
+        //    }
+        //}
 
-            return true;
-        }
-        #endregion
+        //public long Id => ID;
+
+        //public bool Equals(driver.INode other)
+        //{
+        //    if (other.GetType() != typeof(PageNode)) return false;
+
+        //    PageNode pn = (PageNode)other;
+        //    if (pn.ID != ID) return false;
+        //    if (pn.Title != Title) return false;
+
+        //    return true;
+        //}
+        //#endregion
     }
 }

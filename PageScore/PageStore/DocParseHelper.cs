@@ -19,6 +19,19 @@ namespace PageScore
 
             return GetXMLContentRaw(xmdoc);
         }
+        
+        /// <summary>
+        ///     Conform a Cypher create text for a type
+        ///     Code from: https://stackoverflow.com/questions/37254403/c-sharp-neo4jclient-adding-two-new-nodes-with-a-new-relationship-inside-a-transa
+        /// </summary>
+        /// <typeparam name="TObject">The type to handle</typeparam>
+        /// <returns>A string like "{o:TObject {tobject})</returns>
+        static public string KeyFor<TObject>(string quearyName)
+        {
+            var name = typeof(TObject).Name;
+            return $"({quearyName}:{name} {{{name.ToLower()}}})";
+        }
+
         //public static string GetXMLContentRaw(this XmlDocument xml)
         //{
         //    foreach (XmlNode childrenNode in xml)

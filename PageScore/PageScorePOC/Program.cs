@@ -7,6 +7,8 @@ using PageScore;
 using NeoContainers;
 using driver = Neo4j.Driver.V1;
 using client = Neo4jClient;
+using extention = Neo4jClient.Extension;
+using cypher = Neo4jClient.Extension.Cypher;
 
 namespace PageScorePOC
 {
@@ -32,19 +34,15 @@ namespace PageScorePOC
             client.GraphClient graphClient = new client.GraphClient(new Uri("http://localhost:7474/db/data"), "neo4j", "password");
             graphClient.Connect();
 
-            List<PageNode> pns = new List<PageNode>()
-            {
-                new PageNode(1, "Page1", xml1),
-                new PageNode(2, "Page2", xml2),
-                new PageNode(3, "Page3", xml3),
-            };
-            using(client.Transactions.ITransaction trans = graphClient.BeginTransaction())
-            {
-                foreach(PageNode pn in pns)
-                    graphClient.Cypher.Create($"(n:Page {pn.LabelsAsString})").WithParams(pn).ExecuteWithoutResults();
+            //PageNode a = new PageNode(1, "Page1", xml1);
+            //PageNode b = new PageNode(2, "Page2", xml2);
+            //PageNode c = new PageNode(3, "Page3", xml3);
 
-                trans.Commit();
-            }
+            //a.WriteToDatabase(graphClient);
+            //b.WriteToDatabase(graphClient);
+            //c.WriteToDatabase(graphClient);
+
+            LinksTo.Build(graphClient, "Page1", "Page2");
         }
     }
 }
