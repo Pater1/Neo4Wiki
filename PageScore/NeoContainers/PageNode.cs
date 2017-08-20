@@ -66,7 +66,7 @@ namespace NeoContainers
             }
         }
 
-        public PageNode PullFromDatabaseByTitle(client.GraphClient graphClient, string title)
+        public static PageNode PullFromDatabaseByTitle(client.GraphClient graphClient, string title)
         {
             return graphClient.Cypher
                 .Match("(pagenode:PageNode)")
