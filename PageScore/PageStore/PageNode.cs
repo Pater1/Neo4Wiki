@@ -8,6 +8,7 @@ using client = Neo4jClient;
 using PageScore;
 using Neo4jClient.Cypher;
 using Neo4jClient;
+using System.Xml;
 
 namespace NeoContainers
 {
@@ -52,10 +53,25 @@ namespace NeoContainers
         public long ID { get; set; }
         public string Title { get; set; }
         public string Text { get; set; }
-        private string[] WordList { get; set; }
-        private int[] WordCount { get; set; }
+        public string[] WordList { get; set; }
+        public int[] WordCount { get; set; }
 
         private string[] LinkedToList { get; set; }
+        public PageNode[] GetLinkedPages(client.GraphClient graphClient) {
+            PageNode[] ret = new PageNode[LinkedToList.Length];
+
+            for(int i = 0; i < LinkedToList.Length; i++) {
+                ret[i] = PullFromDatabaseByTitle(graphClient, LinkedToList[i]);
+            }
+
+            return ret;
+        }
+
+        public static implicit operator XmlDocument(PageNode a) {
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml(a.Text);
+            return doc;
+        }
 
         public int this[string key]
         {
@@ -123,7 +139,7 @@ namespace NeoContainers
             LinkedToList = links;
         }
 
-        private static Dictionary<string, int> ZipTogetherArrays(string[] words, int[] count)
+        public static Dictionary<string, int> ZipTogetherArrays(string[] words, int[] count)
         {
             Dictionary<string, int> ret = new Dictionary<string, int>();
             for (int i = 0; i < words.Length; i++)
@@ -132,7 +148,7 @@ namespace NeoContainers
             }
             return ret;
         }
-        private static void UnzipArrays(out string[] words, out int[] count, Dictionary<string, int> source)
+        public static void UnzipArrays(out string[] words, out int[] count, Dictionary<string, int> source)
         {
             KeyValuePair<string, int>[] l = source.ToArray();
 
