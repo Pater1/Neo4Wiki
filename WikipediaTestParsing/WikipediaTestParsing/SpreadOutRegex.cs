@@ -8,6 +8,9 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
 
+using NeoContainers;
+
+using Neo4jClient;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Threading;
@@ -29,7 +32,8 @@ namespace WikipediaTestParsing {
         private const string BOLD_TEXT_REGEX = @"'''((?:.+?)?'?'?)'''";
         private const string COMMENT_REGEX = @"<!--.+?-->";
 
-        private static Dictionary<string, List<string>> pagelinks = new Dictionary<string, List<string>>();
+        //private static Dictionary<string, List<string>> pagelinks = new Dictionary<string, List<string>>();
+        private static List<string> allTitles = new List<string>();
 
         public static void Run() {
             Console.OutputEncoding = Encoding.Unicode;
@@ -46,36 +50,69 @@ namespace WikipediaTestParsing {
             while ((line = xmlReader.ReadLine()).Trim() != "</siteinfo>") { }
 
             DateTime start = DateTime.Now;
-            for (int i = 0; i < 2; i++) {
-                string rawXmlPage = String.Empty;
-                while (true) {
-                    line = xmlReader.ReadLine();
-                    if (line == String.Empty) line = "\n";
-                    rawXmlPage += line;
-                    if (line.Trim() == "</page>") break;
+            using (GraphClient database = new GraphClient(new Uri("http://localhost:7474/db/data"), "neo4j", "password")) {
+                database.Connect();
+                for (int i = 0; i < 2; i++) {
+                    string rawXmlPage = String.Empty;
+                    while (true) {
+                        line = xmlReader.ReadLine();
+                        if (line == String.Empty) line = "\n";
+                        rawXmlPage += line;
+                        if (line.Trim() == "</page>") break;
+                    }
+
+                    //if (i == 0) continue;
+
+                    XmlDocument page = new XmlDocument();
+                    page.LoadXml(rawXmlPage);
+
+                    Thread pageProcess = new Thread(new ParameterizedThreadStart(ParseXML));
+                    pageProcess.Start(new Wrapper() { doc = page, db = database });
+                    taskList.Add(pageProcess);
+                }
+                Console.Write("Waiting...");
+                foreach (Thread t in taskList) {
+                    while (t.IsAlive) { }
+                }
+                taskList.Clear();
+
+                foreach (string s in allTitles) {
+                    Thread pageLinkup = new Thread(new ParameterizedThreadStart(CreateRelationship));
+                    pageLinkup.Start(new TitleDatabaseWrapper() { title = s, db = database });
+                    taskList.Add(pageLinkup);
                 }
 
-                //if (i == 0) continue;
+                foreach (Thread t in taskList) {
+                    while (t.IsAlive) { }
+                }
 
-                XmlDocument page = new XmlDocument();
-                page.LoadXml(rawXmlPage);
+                Console.WriteLine("Done");
 
-                Thread pageProcess = new Thread(new ParameterizedThreadStart(ParseXML));
-                pageProcess.Start(page);
-                taskList.Add(pageProcess);
+                Console.WriteLine($"\n--------------------------------------------\n" +
+                    $"Total time elapsed: {DateTime.Now - start}\n--------------------------------------------\n");
             }
-            Console.Write("Waiting...");
-            foreach (Thread t in taskList) {
-                while (t.IsAlive) { }
-            }
-            Console.WriteLine("Done");
-
-            Console.WriteLine($"\n--------------------------------------------\n" +
-                $"Total time elapsed: {DateTime.Now - start}\n--------------------------------------------\n");
         }
 
-        private static void ParseXML(object doc) {
-            XmlDocument page = (XmlDocument) doc;
+        private class TitleDatabaseWrapper {
+            public string title;
+            public GraphClient db;
+        }
+
+        private static void CreateRelationship(object obj) {
+            TitleDatabaseWrapper w = (TitleDatabaseWrapper) obj;
+            PageNode.PullFromDatabaseByTitle(w.db, w.title).LinkUp(w.db);
+        }
+
+        private class Wrapper {
+            public XmlDocument doc;
+            public GraphClient db;
+        }
+
+        private static void ParseXML(object wr) {
+            Wrapper w = (Wrapper) wr;
+            XmlDocument page = w.doc;
+            GraphClient db = w.db;
+            
             string json = JsonConvert.SerializeXmlNode(page, Newtonsoft.Json.Formatting.None, true);
             JObject pageJson = JObject.Parse(json);
 
@@ -85,6 +122,8 @@ namespace WikipediaTestParsing {
 
             string redirect = GetRedirectLink(pageJson);
             if (redirect != null) return;
+
+            long pageId = long.Parse(pageJson.GetValue("id").ToString());
 
             JToken revision = pageJson.GetValue("revision");
             JToken textRevisionAttribute = revision["text"];
@@ -98,10 +137,10 @@ namespace WikipediaTestParsing {
             List<string> links = new List<string>();
 
             FormatToHTML(ref pageText, pageTitle, ref links);
+            allTitles.Add(pageTitle);
 
-            pagelinks.Add(pageTitle, links);
-
-            //Console.WriteLine(pageText + "\n--------------------------------------\n");
+            PageNode pageNode = new PageNode(pageId, pageTitle, pageText, links.ToArray());
+            pageNode.WriteToDatabase(db);
         }
 
         private static void FormatToHTML(ref string pageText, string pageTitle, ref List<string> links) {
