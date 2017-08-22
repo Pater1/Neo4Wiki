@@ -16,7 +16,7 @@ namespace PageStore {
                     UserWordCountScores.Add(key, 0);
                     return 0;
                 }
-                double x = UserWordCountScores[key]*10;
+                double x = UserWordCountScores[key] * 10;
                 return 2.924 * Math.Pow((x - 5), (1 / 3));
             }
         }
@@ -26,8 +26,8 @@ namespace PageStore {
                 UserWordCountScores.Add(word, 0.0);
             }
 
-            double scaledDirection = direction / (double)wordCount;
-            scaledDirection = 1/-(scaledDirection * scaledDirection + 1);
+            double scaledDirection = direction / (double) wordCount;
+            scaledDirection = 1 / -(scaledDirection * scaledDirection + 1);
 
             Console.WriteLine(scaledDirection);
 
@@ -35,9 +35,9 @@ namespace PageStore {
             w += scaledDirection;
 
             //if Math breaks, panic! (and fix the break)
-            if(w >= 1) {
+            if (w >= 1) {
                 w = 0.99;
-            }else if(w <= -1) {
+            } else if (w <= -1) {
                 w = -0.99;
             }
 
@@ -64,7 +64,7 @@ namespace PageStore {
 
         public ScoredPage[] ScorePages(PageNode[] pages) {
             ScoredPage[] ret = new ScoredPage[pages.Length];
-            for(int i = 0; i < ret.Length; i++) {
+            for (int i = 0; i < ret.Length; i++) {
                 ret[i] = new ScoredPage(ScorePage(pages[i]), pages[i]);
             }
             return ret;
@@ -73,8 +73,8 @@ namespace PageStore {
         public PageNode GetTopScoredPage(PageNode[] pages) {
             ScoredPage[] scores = ScorePages(pages);
             ScoredPage currentGreatest = scores[0];
-            for(int i = 1; i < scores.Length; i++) {
-                if(scores[i].score > currentGreatest.score) {
+            for (int i = 1; i < scores.Length; i++) {
+                if (scores[i].score > currentGreatest.score) {
                     currentGreatest = scores[i];
                 }
             }
